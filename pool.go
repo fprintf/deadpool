@@ -7,9 +7,17 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+	"time"
 )
 
-// Worker pool maintains contexts and waitgroups on the workers
+// Monitor interface specifies a Check function
+// which is used to determine if the worker pool needs
+// to be resized
+type Monitor interface {
+	Check(int) (int, error)
+}
+
+// WorkerPool maintains contexts and waitgroups on the workers
 // as well as managing launching and removing workers
 type WorkerPool struct {
 	size     int
@@ -17,6 +25,8 @@ type WorkerPool struct {
 	cancel   context.CancelFunc
 	ctx      context.Context
 	wg       *sync.WaitGroup
+	monitor  Monitor
+	checkDur time.Duration
 }
 
 // Task defines an object that has a Run() function
@@ -24,12 +34,14 @@ type Task interface {
 	Run() error
 }
 
-func NewWorkerPool(size int) WorkerPool {
+func NewWorkerPool(size int, monitor Monitor, checkDur time.Duration) WorkerPool {
 	sizeQueue := 1
 	wp := WorkerPool{
 		size:     size,
 		jobqueue: make(chan Task, sizeQueue),
 		wg:       &sync.WaitGroup{},
+		monitor:  monitor,
+		checkDur: checkDur,
 	}
 	return wp
 }
@@ -73,6 +85,7 @@ func (wp *WorkerPool) Resize(size int) {
 	for count := 0; count < size; count++ {
 		wp.addWorker()
 	}
+	wp.size = size
 }
 
 func (wp *WorkerPool) Enqueue(task Task) {
@@ -80,14 +93,31 @@ func (wp *WorkerPool) Enqueue(task Task) {
 }
 
 func (wp *WorkerPool) Wait(ctx context.Context) {
-	wp.Resize(wp.size)
+	wp.Resize(wp.size) // Initial launch of workers
 	defer wp.wg.Wait()
 
+	// Begin monitor loop to check for workers
+	go func(ctx context.Context) {
+		monitor := wp.monitor
+		for {
+			select {
+			case <-time.After(wp.checkDur):
+				size, err := monitor.Check(wp.size)
+				if err != nil {
+					log.Println("Error in monitor check:", err)
+					continue
+				}
+				if size != wp.size {
+					wp.Resize(size)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(ctx)
+
+	// Wait for us to be told we're done
 	for {
-		// TODO monitor some metric here, probably another passed in function
-		// that then tells us if we need to resize, up or down
-		// if x { Resize(ctx, newSize) } x = loadavg or cpu usage or some user defined metric perhaps
-		//		time.Sleep(time.Millisecond * 500)
 		select {
 		case <-ctx.Done():
 			wp.stopWorkers()

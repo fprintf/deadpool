@@ -97,4 +97,5 @@ func BenchmarkPool(b *testing.B) {
 	}()
 
 	wp.Wait(ctx)
+	b.Log("Processed", numJobs, "jobs")
 }
