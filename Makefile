@@ -8,7 +8,7 @@ build:
 	go build -v -race
 
 check:
-	go test -vet "" -bench .
+	go test -vet "" -bench . -v
 
 clean:
 	$(RM) $(CLEAN)

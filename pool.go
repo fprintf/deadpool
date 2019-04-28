@@ -34,8 +34,22 @@ type Task interface {
 	Run() error
 }
 
-func NewWorkerPool(size int, monitor Monitor, checkDur time.Duration) WorkerPool {
-	sizeQueue := 1
+// NewWorkerPool creates and returns a
+// new WokerPool object properly initialized
+func NewWorkerPool(size int) WorkerPool {
+	sizeQueue := 0
+	wp := WorkerPool{
+		size:     size,
+		jobqueue: make(chan Task, sizeQueue),
+		wg:       &sync.WaitGroup{},
+	}
+	return wp
+}
+
+// NewWorkerPoolWithMonitor creates and returns a WorkerPool
+// object that also checks a monitor every checkDur duration
+func NewWorkerPoolWithMonitor(size int, monitor Monitor, checkDur time.Duration) WorkerPool {
+	sizeQueue := 0
 	wp := WorkerPool{
 		size:     size,
 		jobqueue: make(chan Task, sizeQueue),
@@ -88,33 +102,39 @@ func (wp *WorkerPool) Resize(size int) {
 	wp.size = size
 }
 
+// Enqueue adds a new task to the WokerPool job queue
 func (wp *WorkerPool) Enqueue(task Task) {
 	wp.jobqueue <- task
 }
 
+// Wait launches the workers and waits for it's context to be canceled
+// or some other issue (such as the jobqueue closing unexpectedly) or for
+// all workers to exit
 func (wp *WorkerPool) Wait(ctx context.Context) {
 	wp.Resize(wp.size) // Initial launch of workers
-	defer wp.wg.Wait()
+	defer wp.wg.Wait() // wait for workers to exit properly
 
 	// Begin monitor loop to check for workers
-	go func(ctx context.Context) {
-		monitor := wp.monitor
-		for {
-			select {
-			case <-time.After(wp.checkDur):
-				size, err := monitor.Check(wp.size)
-				if err != nil {
-					log.Println("Error in monitor check:", err)
-					continue
+	if wp.monitor != nil {
+		go func(ctx context.Context) {
+			monitor := wp.monitor
+			for {
+				select {
+				case <-time.After(wp.checkDur):
+					size, err := monitor.Check(wp.size)
+					if err != nil {
+						log.Println("Error in monitor check:", err)
+						continue
+					}
+					if size != wp.size {
+						wp.Resize(size)
+					}
+				case <-ctx.Done():
+					return
 				}
-				if size != wp.size {
-					wp.Resize(size)
-				}
-			case <-ctx.Done():
-				return
 			}
-		}
-	}(ctx)
+		}(ctx)
+	}
 
 	// Wait for us to be told we're done
 	for {
