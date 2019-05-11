@@ -34,7 +34,7 @@ func (j Job) Run() error {
 
 func main() {
 	// A new worker pool with 5 workers
-	wp := NewWorkerPool(5)
+	wp := deadpool.NewWorkerPool(5)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Note this will block/deadlock if not run in a go routine
@@ -61,7 +61,7 @@ import(
 	"fmt"
 	"time"
 
-	worker_pool "github.com/fprintf/worker_pool"
+	"github.com/fprintf/deadpool"
 )
 
 type Job struct {
@@ -93,7 +93,7 @@ func (m Monitor) Check(size int) (int, error) {
 func main() {
 	// A new worker pool with 5 workers
 	monitor := Monitor{"simple report"}
-	wp := NewWorkerPoolWithMonitor(5, monitor, 5 * time.Second)
+	wp := deadpool.NewWorkerPoolWithMonitor(5, monitor, 5 * time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Note this will block/deadlock if not run in a go routine
