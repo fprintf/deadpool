@@ -30,6 +30,7 @@ type Job struct {
 func (j Job) Run() error {
 	// do something with j.name or whatever
 	fmt.Println("running job", j.name)
+	return nil
 }
 
 func main() {
@@ -71,6 +72,7 @@ type Job struct {
 func (j Job) Run() error {
 	// do something with j.name or whatever
 	fmt.Println("running job", j.name)
+	return nil
 }
 
 // The monitor type we wish to use
