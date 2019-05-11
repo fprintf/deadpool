@@ -1,1 +1,1 @@
-module github.com/fprintf/workerpool
+module github.com/fprintf/deadpool
