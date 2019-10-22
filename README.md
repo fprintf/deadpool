@@ -12,8 +12,6 @@ that can be used to adjust the size of the pool as well as manual resizing
 * Task interface super easy to use
 * Optional monitor function to run at a specified interval
 
-* - error -
-
 ## Example
 
 ```go
